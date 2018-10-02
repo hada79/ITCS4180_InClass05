@@ -35,16 +35,19 @@ import java.util.ArrayList;
 
 import static android.provider.ContactsContract.CommonDataKinds.Website.URL;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements GetDataAsync.IData{
 
         String[] categories = new String[7];
         int articleIndex;
         ArrayList<Article> articles;
+        ProgressDialog progressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        progressDialog = new ProgressDialog(this);
 
         categories[0] = "business";
         categories[1] = "entertainment";
@@ -103,7 +106,8 @@ public class MainActivity extends AppCompatActivity {
                             category.setText(categories[which]);
                             articles = null;
                             String selectedCat = category.getText().toString();
-                            new GetDataAsync().execute("https://newsapi.org/v2/top-headlines?country=us&apiKey=d1adb23ff70d40dc91fed1f1ff44c746&category=" + selectedCat);
+
+                            new GetDataAsync(MainActivity.this).execute("https://newsapi.org/v2/top-headlines?country=us&apiKey=d1adb23ff70d40dc91fed1f1ff44c746&category=" + selectedCat);
                         }
                     });
                     alert.create();
@@ -116,7 +120,39 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+    }
 
+    public void handleData(ArrayList<Article> data) {
+
+        if (data.size() > 0) {
+            Log.d("demo", data.toString());
+            this.articles = data;
+            articleIndex = 0;
+
+            findViewById(R.id.next_btn).setVisibility(View.VISIBLE);
+            findViewById(R.id.prev_btn).setVisibility(View.VISIBLE);
+
+            Article article = data.get(articleIndex);
+            displayArticle(article);
+        } else {
+            Toast.makeText(MainActivity.this, "No news found", Toast.LENGTH_SHORT).show();
+            Article article = new Article();
+            displayArticle(article  );
+            Log.d("demo", "empty result");
+        }
+    }
+
+    @Override
+    public void showProgressDialog(String msg) {
+        progressDialog.setMessage(msg);
+        progressDialog.show();
+    }
+
+    @Override
+    public void hideProgressDialog() {
+        if (progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
     }
 
     private boolean isConnected() {
@@ -150,90 +186,4 @@ public class MainActivity extends AppCompatActivity {
         progress.setText(articleIndex+1 + " out of " + articles.size());
 
     }
-
-    private class GetDataAsync extends AsyncTask<String, Void, ArrayList<Article>> {
-        private ProgressDialog dialog;
-
-        private GetDataAsync() {
-            dialog = new ProgressDialog(MainActivity.this);
-        }
-
-        @Override
-        protected ArrayList<Article> doInBackground(String... params) {
-            HttpURLConnection connection = null;
-            ArrayList<Article> result = new ArrayList<>();
-            try {
-                URL url = new URL(params[0]);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.connect();
-                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                    String json = IOUtils.toString(connection.getInputStream(), "UTF8");
-
-                    JSONObject root = new JSONObject(json);
-                    JSONArray articles = root.getJSONArray("articles");
-                    for (int i=0;i<articles.length();i++) {
-                        JSONObject articleJson = articles.getJSONObject(i);
-                        Article article = new Article();
-                        article.author = articleJson.getString("author");
-                        article.description = articleJson.getString("description");
-                        article.url = articleJson.getString("url");
-                        article.title = articleJson.getString("title");
-                        article.urlToImage = articleJson.getString("urlToImage");
-                        article.publishedAt = articleJson.getString("publishedAt");
-                        article.content = articleJson.getString("content");
-
-                        JSONObject sourceJson = articleJson.getJSONObject("source");
-                        Source source = new Source();
-                        source.id = sourceJson.getString("id");
-                        source.name = sourceJson.getString("name");
-
-                        article.source = source;
-                        result.add(article);
-                    }
-                }
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (JSONException e) {
-                e.printStackTrace();
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
-            return result;
-        }
-
-        @Override
-        protected void onPreExecute() {
-            dialog.setMessage("Loading News...");
-            dialog.show();
-            super.onPreExecute();
-        }
-
-        @Override
-        protected void onPostExecute(ArrayList<Article> result) {
-            if (dialog.isShowing()) {
-                dialog.dismiss();
-            }
-            if (result.size() > 0) {
-                Log.d("demo", result.toString());
-                articles = result;
-                articleIndex = 0;
-
-                findViewById(R.id.next_btn).setVisibility(View.VISIBLE);
-                findViewById(R.id.prev_btn).setVisibility(View.VISIBLE);
-
-                Article article = result.get(articleIndex);
-                displayArticle(article);
-            } else {
-                Toast.makeText(MainActivity.this, "No news found", Toast.LENGTH_SHORT).show();
-                Article article = new Article();
-                displayArticle(article  );
-                Log.d("demo", "empty result");
-            }
-        }
-    }
-
 }
